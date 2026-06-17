@@ -1,4 +1,5 @@
 import os
+import html
 from pathlib import Path
 
 import streamlit as st
@@ -145,52 +146,163 @@ def answer_question(question, chunks):
     return generate_answer(question, context)
 
 
+def render_message(role, content):
+    safe_content = html.escape(content).replace("\n", "<br>")
+    row_class = "user-row" if role == "user" else "assistant-row"
+    bubble_class = "user-bubble" if role == "user" else "assistant-bubble"
+    label = "You" if role == "user" else "Grand Horizon Assistant"
+
+    st.markdown(
+        f"""
+        <div class="message-row {row_class}">
+            <div class="message-stack">
+                <div class="message-label">{label}</div>
+                <div class="message-bubble {bubble_class}">{safe_content}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 st.set_page_config(page_title=APP_TITLE, page_icon="💬", layout="centered")
 
 st.markdown(
     """
     <style>
-        .stApp { background: #f7f2ea; }
-        [data-testid="stHeader"] { background: #f7f2ea; }
+        .stApp {
+            background:
+                radial-gradient(circle at top left, rgba(199, 160, 89, 0.24), transparent 34%),
+                linear-gradient(135deg, #111827 0%, #1f2933 52%, #284f3b 100%);
+            color: #f8fafc;
+        }
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+        [data-testid="stAppViewContainer"] > .main {
+            background: transparent;
+        }
+        [data-testid="block-container"] {
+            max-width: 900px;
+            padding-top: 42px;
+            padding-bottom: 120px;
+        }
+        .hero-panel {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(244, 200, 123, 0.35);
+            border-radius: 18px;
+            padding: 26px 28px;
+            margin-bottom: 22px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(14px);
+        }
         .main-title {
-            color: #284f3b;
-            font-size: 34px;
+            color: #fff8e8;
+            font-size: 36px;
             font-weight: 800;
-            margin-bottom: 4px;
+            line-height: 1.14;
+            margin-bottom: 8px;
         }
         .subtitle {
-            color: #6b5b4a;
-            margin-bottom: 24px;
+            color: #f4c87b;
+            font-size: 16px;
+            margin-bottom: 0;
         }
-        div[data-testid="stChatMessage"] {
-            background: #ffffff;
-            border: 1px solid #e3d7c5;
-            border-radius: 8px;
-            padding: 10px 12px;
-            margin-bottom: 12px;
-            color: #1f2933;
+        [data-testid="stCaptionContainer"] {
+            color: #d6e4d2;
+            margin-bottom: 18px;
         }
-        div[data-testid="stChatMessage"] p {
-            color: #1f2933;
+        .message-row {
+            display: flex;
+            margin: 14px 0;
+            width: 100%;
         }
-        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
-            background: #b54f37;
-            border-color: #b54f37;
+        .assistant-row {
+            justify-content: flex-start;
         }
-        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) p {
+        .user-row {
+            justify-content: flex-end;
+        }
+        .message-stack {
+            max-width: min(78%, 680px);
+        }
+        .message-label {
+            color: #f4c87b;
+            font-size: 12px;
+            font-weight: 700;
+            margin: 0 0 5px 2px;
+        }
+        .user-row .message-label {
+            text-align: right;
+            margin-right: 2px;
+        }
+        .message-bubble {
+            border-radius: 14px;
+            padding: 14px 16px;
+            line-height: 1.6;
+            font-size: 15px;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+            overflow-wrap: anywhere;
+        }
+        .assistant-bubble {
+            background: #fffaf0;
+            color: #17202a;
+            border: 1px solid #f4c87b;
+            border-bottom-left-radius: 4px;
+        }
+        .user-bubble {
+            background: linear-gradient(135deg, #b54f37, #7f2f22);
             color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-bottom-right-radius: 4px;
         }
-        div[data-testid="stChatInput"] textarea {
-            color: #1f2933;
+        [data-testid="stChatInput"] {
+            background: rgba(17, 24, 39, 0.72);
+            border-top: 1px solid rgba(244, 200, 123, 0.28);
+            padding: 16px 0;
+        }
+        [data-testid="stChatInput"] textarea,
+        [data-testid="stChatInput"] textarea:focus {
+            background: #ffffff !important;
+            color: #111827 !important;
+            border: 2px solid #f4c87b !important;
+            border-radius: 14px !important;
+            caret-color: #b54f37 !important;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28) !important;
+        }
+        [data-testid="stChatInput"] textarea::placeholder {
+            color: #6b7280 !important;
+            opacity: 1 !important;
+        }
+        [data-testid="stChatInput"] button {
+            background: #f4c87b !important;
+            color: #111827 !important;
+            border-radius: 12px !important;
+        }
+        @media (max-width: 640px) {
+            [data-testid="block-container"] {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+            .main-title {
+                font-size: 28px;
+            }
+            .message-stack {
+                max-width: 92%;
+            }
         }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown(f"<div class='main-title'>{APP_TITLE}</div>", unsafe_allow_html=True)
 st.markdown(
-    "<div class='subtitle'>Ask questions from the preloaded hotel PDF knowledge base.</div>",
+    f"""
+    <div class="hero-panel">
+        <div class="main-title">{APP_TITLE}</div>
+        <div class="subtitle">Ask questions from the preloaded hotel PDF knowledge base.</div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -219,23 +331,20 @@ if "messages" not in st.session_state:
     ]
 
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    render_message(message["role"], message["content"])
 
 question = st.chat_input("Ask a question from the PDF...")
 
 if question:
     st.session_state.messages.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
+    render_message("user", question)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Searching the knowledge base..."):
-            try:
-                answer = answer_question(question, chunks)
-                st.markdown(answer)
-            except Exception as exc:
-                answer = f"Error: {exc}"
-                st.error(answer)
+    with st.spinner("Searching the knowledge base..."):
+        try:
+            answer = answer_question(question, chunks)
+        except Exception as exc:
+            answer = f"Error: {exc}"
+
+    render_message("assistant", answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
