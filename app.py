@@ -4,8 +4,6 @@ from pathlib import Path
 import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 APP_TITLE = "Grand Horizon Hotel Knowledge Base Chatbot"
@@ -55,17 +53,38 @@ def load_knowledge_base():
     if not text.strip():
         raise ValueError("No readable text was found in the PDF.")
 
-    chunks = chunk_text(text)
-    vectorizer = TfidfVectorizer(stop_words="english")
-    matrix = vectorizer.fit_transform(chunks)
-    return chunks, vectorizer, matrix
+    return chunk_text(text)
 
 
-def retrieve_context(question, chunks, vectorizer, matrix, top_k=4):
-    question_vector = vectorizer.transform([question])
-    scores = cosine_similarity(question_vector, matrix).flatten()
-    best_indexes = scores.argsort()[-top_k:][::-1]
-    return "\n\n".join(chunks[index] for index in best_indexes if scores[index] > 0)
+def tokenize(text):
+    stop_words = {
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
+        "in", "is", "it", "of", "on", "or", "that", "the", "to", "was", "what",
+        "when", "where", "who", "why", "with", "how",
+    }
+    words = []
+    for word in text.lower().split():
+        clean_word = "".join(char for char in word if char.isalnum())
+        if clean_word and clean_word not in stop_words:
+            words.append(clean_word)
+    return words
+
+
+def retrieve_context(question, chunks, top_k=4):
+    question_words = set(tokenize(question))
+    scored_chunks = []
+
+    for chunk in chunks:
+        chunk_words = tokenize(chunk)
+        if not chunk_words:
+            continue
+
+        score = sum(1 for word in chunk_words if word in question_words)
+        if score > 0:
+            scored_chunks.append((score, chunk))
+
+    scored_chunks.sort(key=lambda item: item[0], reverse=True)
+    return "\n\n".join(chunk for _, chunk in scored_chunks[:top_k])
 
 
 def generate_answer(question, context):
@@ -136,7 +155,7 @@ if not get_secret("GROQ_API_KEY"):
     st.stop()
 
 try:
-    chunks, vectorizer, matrix = load_knowledge_base()
+    chunks = load_knowledge_base()
 except Exception as exc:
     st.error(str(exc))
     st.stop()
@@ -163,7 +182,7 @@ if question:
     with st.chat_message("assistant"):
         with st.spinner("Searching the knowledge base..."):
             try:
-                context = retrieve_context(question, chunks, vectorizer, matrix)
+                context = retrieve_context(question, chunks)
                 answer = generate_answer(question, context)
                 st.markdown(answer)
             except Exception as exc:
