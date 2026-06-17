@@ -53,7 +53,16 @@ def load_knowledge_base():
     if not text.strip():
         raise ValueError("No readable text was found in the PDF.")
 
-    return chunk_text(text)
+    return text, chunk_text(text)
+
+
+def is_greeting(message):
+    greetings = {"hi", "hello", "hey", "salam", "assalamualaikum", "assalam o alaikum"}
+    return message.strip().lower() in greetings
+
+
+def is_too_short(message):
+    return len(tokenize(message)) == 0
 
 
 def tokenize(text):
@@ -74,12 +83,15 @@ def retrieve_context(question, chunks, top_k=4):
     question_words = set(tokenize(question))
     scored_chunks = []
 
+    if not question_words:
+        return ""
+
     for chunk in chunks:
-        chunk_words = tokenize(chunk)
+        chunk_words = set(tokenize(chunk))
         if not chunk_words:
             continue
 
-        score = sum(1 for word in chunk_words if word in question_words)
+        score = len(question_words.intersection(chunk_words))
         if score > 0:
             scored_chunks.append((score, chunk))
 
@@ -119,12 +131,27 @@ def generate_answer(question, context):
     return response.choices[0].message.content
 
 
+def answer_question(question, chunks):
+    if is_greeting(question):
+        return (
+            "Hello! I am ready to help. Ask me about the Grand Horizon Hotel knowledge base, "
+            "such as rooms, services, policies, dining, reservations, or hotel facilities."
+        )
+
+    if is_too_short(question):
+        return "Please ask a complete question about the Grand Horizon Hotel knowledge base."
+
+    context = retrieve_context(question, chunks)
+    return generate_answer(question, context)
+
+
 st.set_page_config(page_title=APP_TITLE, page_icon="💬", layout="centered")
 
 st.markdown(
     """
     <style>
         .stApp { background: #f7f2ea; }
+        [data-testid="stHeader"] { background: #f7f2ea; }
         .main-title {
             color: #284f3b;
             font-size: 34px;
@@ -134,6 +161,27 @@ st.markdown(
         .subtitle {
             color: #6b5b4a;
             margin-bottom: 24px;
+        }
+        div[data-testid="stChatMessage"] {
+            background: #ffffff;
+            border: 1px solid #e3d7c5;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            color: #1f2933;
+        }
+        div[data-testid="stChatMessage"] p {
+            color: #1f2933;
+        }
+        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+            background: #b54f37;
+            border-color: #b54f37;
+        }
+        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) p {
+            color: #ffffff;
+        }
+        div[data-testid="stChatInput"] textarea {
+            color: #1f2933;
         }
     </style>
     """,
@@ -155,10 +203,12 @@ if not get_secret("GROQ_API_KEY"):
     st.stop()
 
 try:
-    chunks = load_knowledge_base()
+    full_text, chunks = load_knowledge_base()
 except Exception as exc:
     st.error(str(exc))
     st.stop()
+
+st.caption(f"Knowledge base loaded: {len(chunks)} chunks from {PDF_PATH.name}")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -182,8 +232,7 @@ if question:
     with st.chat_message("assistant"):
         with st.spinner("Searching the knowledge base..."):
             try:
-                context = retrieve_context(question, chunks)
-                answer = generate_answer(question, context)
+                answer = answer_question(question, chunks)
                 st.markdown(answer)
             except Exception as exc:
                 answer = f"Error: {exc}"
